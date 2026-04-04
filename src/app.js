@@ -1,184 +1,177 @@
-/**
- * EcoGraph Pro - Main Logic
- * Coordinate system: (0,0) is Top-Left in SVG. 
- * X-axis = Quantity, Y-axis = Price
- */
-
 const state = {
-    diagramType: 'supply-demand',
-    demandCurves: [{ id: Date.now(), shift: 0 }],
-    supplyCurves: [{ id: Date.now() + 1, shift: 0 }],
-    showShading: false
+    type: 'supply-demand',
+    demand: [{ id: 1, shift: 0, color: '#2563eb' }],
+    supply: [{ id: 1, shift: 0, color: '#dc2626' }],
+    textObjects: [
+        { id: 'p-axis', x: 20, y: 40, text: 'Price (P)', style: { bold: true, italic: true, size: 16 } },
+        { id: 'q-axis', x: 520, y: 480, text: 'Quantity (Q)', style: { bold: true, italic: true, size: 16 } }
+    ],
+    axisLabels: {}, // Stores P1, Q1, etc.
+    selectedId: null
 };
 
-const CONFIG = {
-    width: 600,
-    height: 500,
-    padding: 80,
-    mD: 0.8, // Demand Slope
-    mS: -0.8 // Supply Slope
-};
+const DIM = { w: 600, h: 500, pad: 80, mD: 0.8, mS: -0.8 };
 
 function init() {
-    // Event Listeners for Splash Screen
-    document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('start-btn').onclick = () => {
         document.getElementById('splash-screen').classList.add('hidden');
         document.getElementById('editor-screen').classList.remove('hidden');
         render();
-    });
+    };
 
-    document.querySelectorAll('.diagram-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            document.querySelectorAll('.diagram-card').forEach(c => c.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            state.diagramType = e.currentTarget.dataset.type;
-        });
-    });
-
-    // Control Buttons
-    document.getElementById('add-demand-btn').addEventListener('click', () => addCurve('demand'));
-    document.getElementById('add-supply-btn').addEventListener('click', () => addCurve('supply'));
-    document.getElementById('back-btn').addEventListener('click', () => location.reload());
-    document.getElementById('export-btn').addEventListener('click', exportDiagram);
-    document.getElementById('showShading').addEventListener('change', (e) => {
-        state.showShading = e.target.checked;
-        render();
-    });
-
+    document.getElementById('add-d').onclick = () => addCurve('demand');
+    document.getElementById('add-s').onclick = () => addCurve('supply');
+    document.getElementById('export-btn').onclick = exportToJpeg;
+    document.getElementById('graph-container').onclick = handleGraphClick;
+    
     render();
 }
 
 function addCurve(type) {
-    const list = type === 'demand' ? state.demandCurves : state.supplyCurves;
+    const list = state[type];
     if (list.length >= 3) return;
-    list.push({ id: Date.now(), shift: (list.length * 40) });
+    list.push({ id: Date.now(), shift: list.length * 50, color: type === 'demand' ? '#2563eb' : '#dc2626' });
     render();
 }
 
-function removeCurve(type, id) {
-    if (type === 'demand') {
-        state.demandCurves = state.demandCurves.filter(c => c.id !== id);
-    } else {
-        state.supplyCurves = state.supplyCurves.filter(c => c.id !== id);
+// --- MATH: Curve Clipping ---
+function getClippedLine(m, c) {
+    const xStart = DIM.pad;
+    const yStart = c;
+    let xEnd = DIM.w - DIM.pad;
+    let yEnd = m * (xEnd - DIM.pad) + c;
+
+    // Clip at X-Axis (y = DIM.h - DIM.pad)
+    const xAxisY = DIM.h - DIM.pad;
+    if (state.type !== 'monopoly' && yEnd > xAxisY) {
+        xEnd = (xAxisY - c) / m + DIM.pad;
+        yEnd = xAxisY;
     }
-    render();
-}
-
-function updateShift(type, id, val) {
-    const list = type === 'demand' ? state.demandCurves : state.supplyCurves;
-    const curve = list.find(c => c.id === id);
-    if (curve) curve.shift = parseInt(val);
-    render();
+    return { x1: xStart, y1: yStart, x2: xEnd, y2: yEnd };
 }
 
 function render() {
-    renderControls();
-    renderGraph();
-}
+    const container = document.getElementById('graph-container');
+    const inputLayer = document.getElementById('axis-inputs');
+    inputLayer.innerHTML = '';
 
-function renderControls() {
-    const dContainer = document.getElementById('demand-controls');
-    const sContainer = document.getElementById('supply-controls');
+    let svg = `<svg width="${DIM.w}" height="${DIM.h}" id="mainSvg">`;
     
-    document.getElementById('d-count').innerText = state.demandCurves.length;
-    document.getElementById('s-count').innerText = state.supplyCurves.length;
+    // 1. Axes
+    svg += `<line x1="${DIM.pad}" y1="${DIM.h - DIM.pad}" x2="${DIM.w - 20}" y2="${DIM.h - DIM.pad}" stroke="black" stroke-width="2"/>`;
+    svg += `<line x1="${DIM.pad}" y1="20" x2="${DIM.pad}" y2="${DIM.h - DIM.pad}" stroke="black" stroke-width="2"/>`;
 
-    dContainer.innerHTML = state.demandCurves.map((c, i) => `
-        <div class="slider-group">
-            <div class="slider-header">
-                <span>D${i+1} Shift</span>
-                ${i > 0 ? `<button class="delete-curve" onclick="removeCurve('demand', ${c.id})">Delete</button>` : ''}
-            </div>
-            <input type="range" min="-120" max="120" value="${c.shift}" oninput="updateShift('demand', ${c.id}, this.value)">
-        </div>
-    `).join('');
+    // 2. Intersections & Projections
+    let eqCount = 1;
+    state.demand.forEach(d => {
+        const dc = 120 - d.shift;
+        state.supply.forEach(s => {
+            const sc = 380 - s.shift;
+            const xEq = (sc - dc) / (DIM.mD - DIM.mS);
+            const yEq = DIM.mD * xEq + dc;
+            const realX = xEq + DIM.pad;
+            
+            // Draw Projections
+            svg += `<line x1="${DIM.pad}" y1="${yEq}" x2="${realX}" y2="${yEq}" class="projection" />`;
+            svg += `<line x1="${realX}" y1="${DIM.h - DIM.pad}" x2="${realX}" y2="${yEq}" class="projection" />`;
+            svg += `<circle cx="${realX}" cy="${yEq}" r="4" class="dot" />`;
 
-    sContainer.innerHTML = state.supplyCurves.map((c, i) => `
-        <div class="slider-group">
-            <div class="slider-header">
-                <span>S${i+1} Shift</span>
-                ${i > 0 ? `<button class="delete-curve" onclick="removeCurve('supply', ${c.id})">Delete</button>` : ''}
-            </div>
-            <input type="range" min="-120" max="120" value="${c.shift}" oninput="updateShift('supply', ${c.id}, this.value)">
-        </div>
-    `).join('');
-}
-
-function renderGraph() {
-    const { width, height, padding, mD, mS } = CONFIG;
-    const canvas = document.getElementById('graph-container');
-    
-    // Base Intercepts (Starting point of the lines)
-    const baseDc = 100;
-    const baseSc = 400;
-
-    let svgHtml = `<svg width="${width}" height="${height}" id="mainSvg" xmlns="http://www.w3.org/2000/svg">`;
-
-    // 1. Draw Shading (Between D1 and S1)
-    if (state.showShading) {
-        const xEq = (baseSc - baseDc) / (mD - mS);
-        const yEq = mD * xEq + baseDc;
-        svgHtml += `<path d="M ${padding},${baseDc} L ${xEq + padding},${yEq} L ${padding},${yEq} Z" fill="#3b82f6" fill-opacity="0.1" />`;
-        svgHtml += `<path d="M ${padding},${baseSc} L ${xEq + padding},${yEq} L ${padding},${yEq} Z" fill="#ef4444" fill-opacity="0.1" />`;
-    }
-
-    // 2. Draw Axes
-    svgHtml += `
-        <line x1="${padding}" y1="${height - padding}" x2="${width - 20}" y2="${height - padding}" class="axis" />
-        <line x1="${padding}" y1="20" x2="${padding}" y2="${height - padding}" class="axis" />
-        <text x="${padding - 60}" y="40" class="label-text">Price (P)</text>
-        <text x="${width - 100}" y="${height - padding + 40}" class="label-text">Quantity (Q)</text>
-    `;
-
-    // 3. Draw Curves and Intersections
-    state.demandCurves.forEach((dc, dIdx) => {
-        const currentDc = baseDc - dc.shift;
-        const xEnd = width - (padding * 2);
-        const yEnd = mD * xEnd + currentDc;
-        svgHtml += `<line x1="${padding}" y1="${currentDc}" x2="${xEnd + padding}" y2="${yEnd}" class="curve-d" style="${dIdx > 0 ? 'stroke-dasharray: 5;' : ''}" />`;
-        svgHtml += `<text x="${xEnd + padding + 5}" y="${yEnd}" fill="#2563eb" font-weight="bold">D${dIdx+1}</text>`;
-
-        // Intersect with all supply curves
-        state.supplyCurves.forEach((sc, sIdx) => {
-            const currentSc = baseSc - sc.shift;
-            const xEq = (currentSc - currentDc) / (mD - mS);
-            const yEq = mD * xEq + currentDc;
-
-            // Only draw projection if it's the main equilibrium or both are secondary
-            if ((dIdx === 0 && sIdx === 0) || (dIdx === state.demandCurves.length - 1 && sIdx === state.supplyCurves.length - 1)) {
-                svgHtml += `
-                    <line x1="${padding}" y1="${yEq}" x2="${xEq + padding}" y2="${yEq}" class="projection" />
-                    <line x1="${xEq + padding}" y1="${height - padding}" x2="${xEq + padding}" y2="${yEq}" class="projection" />
-                    <circle cx="${xEq + padding}" cy="${yEq}" r="4" fill="#000" />
-                `;
-            }
+            // Axis Inputs (Absolute positioned overlays)
+            createAxisInput(DIM.pad - 60, yEq - 10, `P${eqCount}`);
+            createAxisInput(realX - 25, DIM.h - DIM.pad + 10, `Q${eqCount}`);
+            eqCount++;
         });
     });
 
-    state.supplyCurves.forEach((sc, sIdx) => {
-        const currentSc = baseSc - sc.shift;
-        const xEnd = width - (padding * 2);
-        const yEnd = mS * xEnd + currentSc;
-        svgHtml += `<line x1="${padding}" y1="${currentSc}" x2="${xEnd + padding}" y2="${yEnd}" class="curve-s" style="${sIdx > 0 ? 'stroke-dasharray: 5;' : ''}" />`;
-        svgHtml += `<text x="${xEnd + padding + 5}" y="${yEnd}" fill="#dc2626" font-weight="bold">S${sIdx+1}</text>`;
+    // 3. Curves
+    state.demand.forEach((d, i) => {
+        const coords = getClippedLine(DIM.mD, 120 - d.shift);
+        svg += `<line x1="${coords.x1}" y1="${coords.y1}" x2="${coords.x2}" y2="${coords.y2}" stroke="${d.color}" class="curve" onclick="selectCurve('demand', ${d.id})"/>`;
+        svg += `<text x="${coords.x2 + 5}" y="${coords.y2}" fill="${d.color}" font-weight="bold">D${i+1}</text>`;
     });
 
-    svgHtml += `</svg>`;
-    canvas.innerHTML = svgHtml;
+    state.supply.forEach((s, i) => {
+        const coords = getClippedLine(DIM.mS, 380 - s.shift);
+        svg += `<line x1="${coords.x1}" y1="${coords.y1}" x2="${coords.x2}" y2="${coords.y2}" stroke="${s.color}" class="curve" onclick="selectCurve('supply', ${s.id})"/>`;
+        svg += `<text x="${coords.x2 + 5}" y="${coords.y2}" fill="${s.color}" font-weight="bold">S${i+1}</text>`;
+    });
+
+    // 4. Free Text Objects
+    state.textObjects.forEach(obj => {
+        svg += `<text x="${obj.x}" y="${obj.y}" class="draggable-text" 
+                style="font-weight:${obj.style.bold?'bold':'normal'}; font-style:${obj.style.italic?'italic':'normal'}; font-size:${obj.style.size}px"
+                onmousedown="startDrag(event, '${obj.id}')">${obj.text}</text>`;
+    });
+
+    svg += `</svg>`;
+    container.innerHTML = svg;
+    updateSidebar();
 }
 
-function exportDiagram() {
-    const svg = document.getElementById('mainSvg').outerHTML;
-    const blob = new Blob([svg], {type: 'image/svg+xml'});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'economics-diagram.svg';
-    link.click();
+function createAxisInput(x, y, defaultVal) {
+    const input = document.createElement('input');
+    input.className = 'axis-label-input';
+    input.style.left = `${x + 60}px`; // Adjusted for container padding
+    input.style.top = `${y + 60}px`;
+    input.value = state.axisLabels[`${x}-${y}`] || defaultVal;
+    input.onchange = (e) => state.axisLabels[`${x}-${y}`] = e.target.value;
+    document.getElementById('axis-inputs').appendChild(input);
 }
 
-// Global exposure for inline HTML events
-window.updateShift = updateShift;
-window.removeCurve = removeCurve;
+function handleGraphClick(e) {
+    if (e.target.tagName === 'svg' || e.target.id === 'graph-container') {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const txt = prompt("Enter text:");
+        if (txt) {
+            state.textObjects.push({ id: Date.now(), x, y, text: txt, style: { size: 14 } });
+            render();
+        }
+    }
+}
 
-window.onload = init;
+function exportToJpeg() {
+    const svg = document.querySelector('#mainSvg');
+    const canvas = document.createElement('canvas');
+    canvas.width = DIM.w + 100;
+    canvas.height = DIM.h + 100;
+    const ctx = canvas.getContext('2d');
+    
+    // Fill white background
+    ctx.fillStyle = "white";
+    ctx.fillRect(0,0, canvas.width, canvas.height);
+
+    const data = (new XMLSerializer()).serializeToString(svg);
+    const img = new Image();
+    const svgBlob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = () => {
+        ctx.drawImage(img, 50, 50);
+        const jpgUrl = canvas.toDataURL("image/jpeg", 1.0);
+        const link = document.createElement('a');
+        link.download = 'diagram.jpg';
+        link.href = jpgUrl;
+        link.click();
+    };
+    img.src = url;
+}
+
+// Sidebar/Curve UI Helpers
+function updateSidebar() {
+    const dList = document.getElementById('d-list');
+    dList.innerHTML = state.demand.map(d => `
+        <div class="control-group">
+            <input type="range" min="-100" max="150" value="${d.shift}" oninput="updateShift('demand', ${d.id}, this.value)">
+        </div>
+    `).join('');
+    // Similar for supply...
+}
+
+window.updateShift = (type, id, val) => {
+    state[type].find(c => c.id === id).shift = parseInt(val);
+    render();
+};
+
+init();
