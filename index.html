@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoGraph Pro | Diagram Generator</title>
+    <link rel="stylesheet" href="src/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <div id="splash-screen" class="view-container">
+        <div class="splash-card">
+            <div class="logo-large">
+                <i data-lucide="trending-up"></i>
+                <h1>EcoGraph Pro</h1>
+            </div>
+            <p>High-quality economics diagrams for IGCSE & IB.</p>
+            
+            <div class="diagram-options">
+                <div class="diagram-card active" data-type="supply-demand">
+                    <h3>Supply & Demand</h3>
+                    <p>Standard equilibrium, shifts, and elasticity.</p>
+                </div>
+                <div class="diagram-card" data-type="macro-adas">
+                    <h3>AD-AS Model</h3>
+                    <p>Macroeconomic output and price levels.</p>
+                </div>
+                <div class="diagram-card" data-type="externalities">
+                    <h3>Externalities</h3>
+                    <p>MSC, MPC, and Social Welfare loss.</p>
+                </div>
+            </div>
+            
+            <button id="start-btn" class="btn-primary start-btn">
+                Open Editor <i data-lucide="arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="editor-screen" class="app-container hidden">
+        <aside class="sidebar">
+            <div class="logo">
+                <i data-lucide="trending-up"></i>
+                <h2>EcoGraph Pro</h2>
+            </div>
+
+            <div class="control-section">
+                <div class="section-header">
+                    <label>Demand Curves (<span id="d-count">1</span>/3)</label>
+                    <button id="add-demand-btn" class="icon-btn" title="Add Demand Curve"><i data-lucide="plus"></i></button>
+                </div>
+                <div id="demand-controls" class="controls-list"></div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-header">
+                    <label>Supply Curves (<span id="s-count">1</span>/3)</label>
+                    <button id="add-supply-btn" class="icon-btn" title="Add Supply Curve"><i data-lucide="plus"></i></button>
+                </div>
+                <div id="supply-controls" class="controls-list"></div>
+            </div>
+
+            <div class="control-group checkbox-group">
+                <input type="checkbox" id="showShading">
+                <label for="showShading">Show Surplus Shading</label>
+            </div>
+
+            <div class="actions">
+                <button id="back-btn" class="btn-secondary"><i data-lucide="arrow-left"></i> Home</button>
+                <button id="export-btn" class="btn-primary"><i data-lucide="download"></i> Export SVG</button>
+            </div>
+        </aside>
+
+        <main class="canvas-area">
+            <div id="graph-container" class="graph-card">
+                </div>
+        </main>
+    </div>
+
+    <script src="src/app.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
