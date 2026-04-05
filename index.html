@@ -1,138 +1,216 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EcoGraph Pro</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="src/style.css">
-  <script src="src/diagrams.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EconDraw — Economics Diagram Maker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- SPLASH SCREEN -->
-<div id="splash">
-  <div class="splash-inner">
-    <div class="splash-logo">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <rect width="32" height="32" rx="8" fill="#01696f"/>
-        <polyline points="4,24 10,14 16,18 22,8 28,10" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <h1>EcoGraph Pro</h1>
-    </div>
-    <p class="splash-sub">Professional economics diagram maker for IB & IGCSE — select a diagram type to begin</p>
-
-    <div class="category-title">Microeconomics</div>
-    <div class="diagram-grid" id="micro-grid"></div>
-
-    <div class="category-title">Macroeconomics</div>
-    <div class="diagram-grid" id="macro-grid"></div>
-
-    <div class="splash-actions">
-      <button class="btn-primary" id="launch-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M5 3l14 9-14 9V3z"/>
-        </svg>
-        Open Workspace
-      </button>
-    </div>
-  </div>
+<!-- ── TOP BAR ── -->
+<div class="topbar">
+  <div class="brand">EconDraw <span>IGCSE · IB Economics</span></div>
+  <div class="topbar-sep"></div>
+  <select class="diag-select" id="diagSelect">
+    <optgroup label="── Microeconomics ──">
+      <option value="supply_demand">Supply &amp; Demand (Equilibrium)</option>
+      <option value="supply_demand_shift">Supply &amp; Demand (with Shifts)</option>
+      <option value="elasticity">Elasticity (Elastic vs Inelastic)</option>
+      <option value="consumer_producer_surplus">Consumer &amp; Producer Surplus</option>
+      <option value="tax_incidence">Tax Incidence</option>
+      <option value="subsidy">Subsidy</option>
+      <option value="price_ceiling">Price Ceiling (Max Price)</option>
+      <option value="price_floor">Price Floor (Min Price)</option>
+      <option value="negative_externality">Negative Externality</option>
+      <option value="positive_externality">Positive Externality</option>
+      <option value="costs_revenue">Costs &amp; Revenue (MC/AC/AR/MR)</option>
+      <option value="monopoly">Monopoly (Profit Maximisation)</option>
+      <option value="perfect_competition">Perfect Competition</option>
+    </optgroup>
+    <optgroup label="── Macroeconomics ──">
+      <option value="ad_as">AD-AS Model</option>
+      <option value="phillips_curve">Phillips Curve</option>
+      <option value="ppf">Production Possibility Frontier</option>
+      <option value="labour_market">Labour Market</option>
+    </optgroup>
+  </select>
+  <button class="topbar-btn" onclick="loadDiagram()">⟳ Load</button>
+  <button class="topbar-btn" id="addTextBtn" onclick="toggleTextMode()">✎ Add Text</button>
+  <div class="topbar-spacer"></div>
+  <button class="topbar-btn" onclick="resetDiagram()">↺ Reset</button>
+  <button class="topbar-btn accent" onclick="exportJPEG()">⬇ Export JPEG</button>
 </div>
 
-<!-- APP -->
-<div id="app">
+<div class="main">
 
-  <!-- Text Formatting Toolbar -->
-  <div id="text-toolbar">
-    <span class="toolbar-label">Format Label:</span>
-    <button class="toolbar-btn" id="tb-bold" title="Bold"><b>B</b></button>
-    <button class="toolbar-btn" id="tb-italic" title="Italic"><i>I</i></button>
-    <button class="toolbar-btn" id="tb-sub" title="Subscript">x<sub>2</sub></button>
-    <div class="toolbar-sep"></div>
-    <span class="toolbar-label">Size:</span>
-    <input type="number" id="toolbar-fontsize" value="14" min="8" max="36" title="Font size">
-    <div class="toolbar-sep"></div>
-    <span class="toolbar-label">Color:</span>
-    <input type="color" id="toolbar-color" value="#222222" title="Text color">
-    <div class="toolbar-sep"></div>
-    <button class="toolbar-btn" id="tb-delete" title="Delete selected label" style="color:#c0392b">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="3 6 5 6 21 6"/>
-        <path d="M19 6l-1 14H6L5 6"/>
-        <path d="M10 11v6M14 11v6"/>
-        <path d="M9 6V4h6v2"/>
-      </svg>
-    </button>
-    <span class="toolbar-selected-hint" id="toolbar-hint">Click a label on the graph to select it</span>
-  </div>
+  <!-- ── LEFT SIDEBAR ── -->
+  <div class="sidebar">
+    <div class="sb-section">
+      <div class="sb-label">Curves</div>
+      <div id="curveList"></div>
+      <button class="add-curve-btn" onclick="addCurve()">+ Add Curve</button>
+    </div>
 
-  <!-- Main layout -->
-  <div id="main">
+    <div class="sb-section" id="curveControls" style="display:none">
+      <div class="sb-label">Selected Curve</div>
 
-    <!-- Sidebar -->
-    <aside id="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">
-          <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="#01696f"/>
-            <polyline points="4,24 10,14 16,18 22,8 28,10" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>EcoGraph Pro</span>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Label</span>
+        <input class="ctrl-input" id="curveName" oninput="updateSelectedCurve()" placeholder="e.g. D1">
+      </div>
+
+      <div class="ctrl-row">
+        <span class="ctrl-label">Style</span>
+        <select class="ctrl-input" id="curveStyle" onchange="updateSelectedCurve()">
+          <option value="solid">Solid</option>
+          <option value="dashed">Dashed</option>
+          <option value="dotted">Dotted</option>
+        </select>
+      </div>
+
+      <div class="ctrl-row">
+        <span class="ctrl-label">Colour</span>
+        <div class="color-row">
+          <div class="color-chip" style="background:#2563eb" data-col="#2563eb" onclick="pickColor(this)"></div>
+          <div class="color-chip" style="background:#dc2626" data-col="#dc2626" onclick="pickColor(this)"></div>
+          <div class="color-chip" style="background:#16a34a" data-col="#16a34a" onclick="pickColor(this)"></div>
+          <div class="color-chip" style="background:#d97706" data-col="#d97706" onclick="pickColor(this)"></div>
+          <div class="color-chip" style="background:#7c3aed" data-col="#7c3aed" onclick="pickColor(this)"></div>
+          <div class="color-chip" style="background:#0891b2" data-col="#0891b2" onclick="pickColor(this)"></div>
+          <div class="color-chip" style="background:#be185d" data-col="#be185d" onclick="pickColor(this)"></div>
+          <div class="color-custom-wrap" title="Custom colour">
+            <div class="color-chip" style="background:linear-gradient(135deg,#f00,#0f0,#00f)" id="customChip"></div>
+            <input type="color" id="customColorPicker" oninput="pickCustomColor(this.value)"
+              style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+          </div>
         </div>
-        <div class="diagram-badge" id="diagram-badge"></div>
       </div>
 
-      <div id="sidebar-body"></div>
-
-      <div class="hint-text">
-        💡 Click graph to add a text label<br>
-        🎨 Click colored dot to change curve color<br>
-        ↔ Drag sliders to shift curves<br>
-        ✏️ Drag labels to reposition
+      <div class="ctrl-row">
+        <span class="ctrl-label">Thickness</span>
+        <div class="slider-row">
+          <input type="range" class="ctrl-slider" id="curveThick" min="1" max="5" step=".5" value="2"
+            oninput="updateSelectedCurve();document.getElementById('thickVal').textContent=this.value">
+          <span class="slider-val" id="thickVal">2</span>
+        </div>
       </div>
 
-      <div class="sidebar-actions">
-        <button class="btn-secondary" id="shade-btn">◼ Shading On</button>
-        <button class="btn-secondary" id="auto-size-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 0-2 2h-3"/>
-          </svg>
-          Auto-Size / Reset Shifts
-        </button>
-        <button class="btn-secondary" id="reset-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-          </svg>
-          Reset Diagram
-        </button>
-        <button class="btn-primary" id="export-btn" style="margin-top:4px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Export as JPEG
-        </button>
-        <button class="btn-danger" id="back-btn" style="margin-top:8px">
-          ← Change Diagram Type
-        </button>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Slope</span>
+        <div class="slider-row">
+          <input type="range" class="ctrl-slider" id="curveSlope" min="-3" max="3" step=".1" value="-1"
+            oninput="updateSelectedCurve();document.getElementById('slopeVal').textContent=this.value">
+          <span class="slider-val" id="slopeVal">-1</span>
+        </div>
       </div>
-    </aside>
 
-    <!-- Canvas -->
-    <div id="canvas-area">
-      <div id="graph-wrap">
-        <div id="graph-container"></div>
-        <div id="axis-overlay"></div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Shift</span>
+        <div class="shift-grid">
+          <div></div>
+          <button class="shift-btn" onclick="shiftCurve(0,-5)">↑</button>
+          <div></div>
+          <button class="shift-btn" onclick="shiftCurve(-5,0)">←</button>
+          <button class="shift-btn" onclick="autoSize()" title="Auto-size">⊙</button>
+          <button class="shift-btn" onclick="shiftCurve(5,0)">→</button>
+          <div></div>
+          <button class="shift-btn" onclick="shiftCurve(0,5)">↓</button>
+          <div></div>
+        </div>
+      </div>
+
+      <div class="ctrl-row" style="margin-top:8px">
+        <button class="add-curve-btn" onclick="deleteSelectedCurve()"
+          style="border-color:rgba(220,38,38,.4);color:rgba(220,100,100,.8)">✕ Delete Curve</button>
       </div>
     </div>
 
-  </div>
-</div>
+    <div class="sb-section">
+      <div class="sb-label">Axes</div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">X-axis label</span>
+        <input class="ctrl-input" id="xLabel" value="Quantity (Q)" oninput="redraw()">
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Y-axis label</span>
+        <input class="ctrl-input" id="yLabel" value="Price (P)" oninput="redraw()">
+      </div>
+    </div>
 
-<script src="src/app.js"></script>
+    <div class="sb-section">
+      <div class="sb-label">Intersection Points</div>
+      <div id="intersectList"></div>
+      <button class="add-curve-btn" onclick="addIntersectPoint()">+ Add Point</button>
+    </div>
+  </div>
+
+  <!-- ── CANVAS AREA ── -->
+  <div class="canvas-area">
+    <div class="fmt-toolbar">
+      <button class="fmt-btn" id="fmtBold"  onclick="fmt('bold')"        title="Bold"><b>B</b></button>
+      <button class="fmt-btn" id="fmtItal"  onclick="fmt('italic')"      title="Italic"><i>I</i></button>
+      <button class="fmt-btn" id="fmtUnder" onclick="fmt('underline')"   title="Underline" style="text-decoration:underline">U</button>
+      <button class="fmt-btn" id="fmtSub"   onclick="fmt('subscript')"   title="Subscript">x<sub>2</sub></button>
+      <button class="fmt-btn" id="fmtSup"   onclick="fmt('superscript')" title="Superscript">x<sup>2</sup></button>
+      <div class="fmt-sep"></div>
+      <select class="font-size-select" id="fontSizeSelect" onchange="fmt('fontSize',this.value)">
+        <option value="1">8pt</option>
+        <option value="2">10pt</option>
+        <option value="3" selected>12pt</option>
+        <option value="4">14pt</option>
+        <option value="5">18pt</option>
+        <option value="6">24pt</option>
+      </select>
+      <div class="fmt-sep"></div>
+      <span class="fmt-hint">✎ Click canvas to add text box · Click curve to select</span>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="diag" width="680" height="520"></canvas>
+      <div class="intersect-popup" id="intersectPopup">
+        <h4>Label this point</h4>
+        <div class="ip-row">
+          <span class="ip-lbl">P</span>
+          <input class="ip-input" id="ipY" placeholder="e.g. P₁" oninput="updateIntersectLabel()">
+        </div>
+        <div class="ip-row">
+          <span class="ip-lbl">Q</span>
+          <input class="ip-input" id="ipX" placeholder="e.g. Q₁" oninput="updateIntersectLabel()">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="right-panel">
+    <div class="sb-section">
+      <div class="sb-label">Auto-Size</div>
+      <button class="autosize-btn" onclick="autoSize()">⊙ Auto-fit all curves</button>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Shading</div>
+      <div id="shadePanel"></div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Canvas Size</div>
+      <div class="ctrl-row">
+        <span class="ctrl-label" style="color:rgba(255,255,255,.5)">Width</span>
+        <input class="ctrl-input" id="canvasW" type="number" value="680" min="400" max="1200" oninput="resizeCanvas()">
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label" style="color:rgba(255,255,255,.5)">Height</span>
+        <input class="ctrl-input" id="canvasH" type="number" value="520" min="300" max="900" oninput="resizeCanvas()">
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script src="app.js"></script>
 </body>
 </html>
+
